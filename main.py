@@ -53,7 +53,7 @@ async def blur_watermark(input_path, output_path):
     # ၃။ Gaussian Blur လုပ်မယ် (ဒါက အသားတကျ ဝါးစေတယ်)
     # (51, 51) က ဝါးမယ့် အား (ကိန်းဂဏန်း ကြီးလေ ပိုဝါးလေ)
     # ကိန်းဂဏန်းသည် မကိန်း (Odd Number) ဖြစ်ရမယ်
-    blurred_roi = cv2.GaussianBlur(roi, (89, 89), 25)
+    blurred_roi = cv2.GaussianBlur(roi, (75, 75), 25)
 
     # ၄။ မူရင်းပုံထဲ ပြန်ထည့်မယ်
     img[y1:y2, x1:x2] = blurred_roi
@@ -98,4 +98,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     print("Bot Started (Blur Mode)...")
     app.run_polling()
+
 
