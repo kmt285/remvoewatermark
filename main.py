@@ -25,38 +25,25 @@ async def remove_watermark(input_path, output_path):
     
     h, w, _ = img.shape
     
-    # ၁။ စာသားရှိနိုင်တဲ့ ဧရိယာကို ချဲ့ထွင်သတ်မှတ်ခြင်း (အပေါ်အောက် ၂၅% မှ ၇၅%)
-    cy1, cy2 = int(h * 0.25), int(h * 0.75)
-    cx1, cx2 = int(w * 0.15), int(w * 0.85)
+    # ၁။ စာသားဧရိယာကို အစပိုင်းကထက် နည်းနည်းပဲ ပိုချဲ့မယ် (Subtle expansion)
+    cy1, cy2 = int(h * 0.35), int(h * 0.65) 
+    cx1, cx2 = int(w * 0.25), int(w * 0.75)
     
-    # ၂။ အဖြူရောင် နှင့် အနီရောင် စာသားများကို ရှာဖွေခြင်း
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # ၂။ စာသားကို ရှာတဲ့နေရာမှာ ပိုတိကျအောင် Threshold ကို တိုးလိုက်ပါမယ်
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # ၂၀၀ အစား ၂၂၀ သုံးခြင်းဖြင့် စာသားအစစ်ကိုပဲ ပိုဖမ်းမိစေပါတယ်
+    _, mask = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY) 
     
-    # အဖြူရောင်အတွက် Mask
-    lower_white = np.array([0, 0, 200])
-    upper_white = np.array([180, 30, 255])
-    mask_white = cv2.inRange(hsv, lower_white, upper_white)
+    final_mask = np.zeros_like(mask)
+    final_mask[cy1:cy2, cx1:cx2] = mask[cy1:cy2, cx1:cx2]
     
-    # အနီရောင်အတွက် Mask (ပုံထဲက အနီရောင်စာသားအတွက်)
-    lower_red1 = np.array([0, 50, 50])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([170, 50, 50])
-    upper_red2 = np.array([180, 255, 255])
-    mask_red = cv2.inRange(hsv, lower_red1, upper_red1) + cv2.inRange(hsv, lower_red2, upper_red2)
-    
-    # Mask နှစ်ခုပေါင်းခြင်း
-    combined_mask = cv2.bitwise_or(mask_white, mask_red)
-    
-    # ၃။ အလယ်ဗဟိုကစာသားကိုပဲ ယူမယ်
-    final_mask = np.zeros_like(combined_mask)
-    final_mask[cy1:cy2, cx1:cx2] = combined_mask[cy1:cy2, cx1:cx2]
-    
-    # ၄။ Dilation - ရှာတွေ့တဲ့စာသားကို ၃ pixels လောက် ဘေးကို ချဲ့လိုက်ခြင်း (ပိုသန့်အောင်)
-    kernel = np.ones((3,3), np.uint8)
+    # ၃။ ဧရိယာချဲ့တာကို အနည်းဆုံး (၁ pixel) ပဲ ထားပါမယ်
+    kernel = np.ones((2,2), np.uint8)
     final_mask = cv2.dilate(final_mask, kernel, iterations=1)
     
-    # ၅။ Inpaint (Radius ကို 7 အထိ တိုးလိုက်ပါမယ်)
-    result = cv2.inpaint(img, final_mask, 7, cv2.INPAINT_TELEA)
+    # ၄။ Inpaint Radius ကို လျှော့ချခြင်း (ပုံမဝါးအောင်)
+    # ၇ အစား ၃ ကို ပြန်သုံးပါမယ်။ ဒါမှ ပုံရိပ်တွေ မကွဲမှာပါ
+    result = cv2.inpaint(img, final_mask, 3, cv2.INPAINT_TELEA)
     
     cv2.imwrite(output_path, result)
     return True
@@ -78,5 +65,6 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.run_polling()
+
 
 
