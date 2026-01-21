@@ -25,7 +25,7 @@ ADMINS = [7812553563] # သင့် User ID ထည့်ပါ
 AUTH_CHANNELS = [-1003622691900, -1003629942364] # Join ခိုင်းမည့် Channel များ
 
 # Database Setup
-db_client = AsyncIOMotorClient(MONGO_URI)
+client_db = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = db_client.movie_database
 movies_col = db.movies
 
@@ -100,60 +100,47 @@ async def index_movies(client, message):
         return await message.reply_text("Format: `/index [channel_id] [start_id] [end_id]`")
 
     try:
-        # ID ကို string ကနေ integer ပြောင်းလဲမှုကို သေချာအောင်လုပ်ခြင်း
-        input_chat = message.command[1]
-        if not input_chat.startswith("-100"):
-            target_chat = int("-100" + input_chat)
-        else:
-            target_chat = int(input_chat)
-            
+        target_chat = int(message.command[1])
         start = int(message.command[2])
         end = int(message.command[3])
-    except Exception as e:
-        return await message.reply_text(f"❌ Input Error: {str(e)}")
-    
-    status = await message.reply_text("🔍 Channel ကို စတင်ချိတ်ဆက်နေပါပြီ...")
-    count = 0
+    except:
+        return await message.reply_text("ID ဂဏန်းများ မှားယွင်းနေပါသည်။")
 
-    try:
-        # Bot က Channel ကို တကယ်မြင်ရလား အရင်စစ်မယ်
-        chat_info = await client.get_chat(target_chat)
-        await status.edit(f"✅ Connection အောင်မြင်သည်- {chat_info.title}\n🎥 Indexing စတင်နေပြီ...")
-    except Exception as e:
-        return await status.edit(f"❌ Channel Error: Bot က Channel ကို မမြင်ရပါ။ Bot ကို Admin ခန့်ထားတာ သေချာပါသလား?\nError: {str(e)}")
+    status = await message.reply_text("🔍 စတင်နေပါပြီ... (Database ချိတ်ဆက်မှုကို စစ်ဆေးနေသည်)")
+    count = 0
 
     for msg_id in range(start, end + 1):
         try:
             msg = await client.get_messages(target_chat, msg_id)
-            
             if msg and (msg.video or msg.document):
                 media = msg.video or msg.document
                 file_name = getattr(media, 'file_name', f"Movie_{msg_id}")
-                
-                # Movie ID ကို Link အတွက် ပြုလုပ်ခြင်း
-                short_id = str(target_chat).replace("-100", "")
-                movie_id = f"vid_{short_id}_{msg_id}"
-                
-                await movies_col.update_one(
-                    {"movie_id": movie_id},
-                    {"$set": {
-                        "movie_id": movie_id,
-                        "from_chat_id": target_chat,
-                        "msg_id": msg_id,
-                        "caption": msg.caption or file_name
-                    }}, upsert=True
-                )
-                
+                movie_id = f"vid_{str(target_chat).replace('-100', '')}_{msg_id}"
+
+                # Database ထဲ သိမ်းမည့်အပိုင်း (Error တက်လျှင် ဒီမှာ သိနိုင်သည်)
+                try:
+                    await movies_collection.update_one(
+                        {"movie_id": movie_id},
+                        {"$set": {
+                            "movie_id": movie_id,
+                            "channel_id": target_chat,
+                            "msg_id": msg_id,
+                            "file_name": file_name
+                        }},
+                        upsert=True
+                    )
+                except Exception as db_err:
+                    return await status.edit(f"❌ Database Error: {str(db_err)}")
+
                 count += 1
-                # ၅ ခုမြောက်တိုင်း တစ်ခါ status update ပေးမယ်
-                if count % 5 == 0:
-                    await status.edit(f"⏳ လုပ်ဆောင်နေဆဲ... သိမ်းဆည်းပြီး: {count}")
-            
-            await asyncio.sleep(1.0) # Telegram Flood Wait ရှောင်ရန်
+                if count % 10 == 0:
+                    await status.edit(f"⏳ သိမ်းဆည်းနေဆဲ... {count} ကား")
+                
+                await asyncio.sleep(1) 
         except Exception:
             continue
 
-    await status.edit(f"✅ ပြီးဆုံးပါပြီ။\nစုစုပေါင်း {count} ဖိုင် သိမ်းဆည်းပြီး။")
+    await status.edit(f"✅ ပြီးဆုံးပါပြီ။ စုစုပေါင်း {count} ဖိုင် သိမ်းဆည်းပြီး။")
     
 # Admin Command: Database ထဲက movie အရေအတွက် ကြည့်ရန်
 @app.on_message(filters.command("stats") & filters.user(ADMINS))
@@ -165,6 +152,7 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     print("Bot is running...")
     app.run()
+
 
 
 
