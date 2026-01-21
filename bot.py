@@ -10,6 +10,7 @@ API_ID = int(os.environ.get("API_ID", 12345)) # Render မှာ ထည့်ထ
 API_HASH = os.environ.get("API_HASH", "your_hash")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "your_token")
 MONGO_URI = os.environ.get("MONGO_URI", "your_mongodb_uri")
+ADMINS = [7812553563]
 
 # Force Join စစ်မည့် Channel များ
 # Example: [-10012345678, -10087654321]
@@ -117,5 +118,6 @@ async def update_movies(client, message):
     await status_msg.edit(f"ပြီးဆုံးပါပြီ။ စုစုပေါင်း {count} ဖိုင် သိမ်းဆည်းပြီး။")
 
 app.run()
+
 
 
