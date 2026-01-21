@@ -94,16 +94,34 @@ async def index_movies(client, message):
     status = await message.reply_text("⏳ Processing...")
     count = 0
 
-# --- အစားထိုးရန် code အပိုင်းအစ ---
+@app.on_message(filters.command("index") & filters.user(ADMINS))
+async def index_movies(client, message):
+    if len(message.command) < 4:
+        return await message.reply_text("Format: `/index [channel_id] [start_id] [end_id]`")
+
+    try:
+        target_chat = int(message.command[1])
+        start = int(message.command[2])
+        end = int(message.command[3])
+    except:
+        return await message.reply_text("ID တွေက ဂဏန်းပဲ ဖြစ်ရပါမယ်။")
+    
+    status = await message.reply_text("🔍 စစ်ဆေးနေပါပြီ...")
+    count = 0
+
     for msg_id in range(start, end + 1):
         try:
             msg = await client.get_messages(target_chat, msg_id)
-            # Video သာမက message မှာ media ပါရင် အကုန်စစ်မယ်
-            if msg and (msg.video or msg.document or msg.animation):
-                file_name = "Movie File"
-                if msg.video: file_name = msg.video.file_name
-                elif msg.document: file_name = msg.document.file_name
+            
+            # Message ရှိမရှိ အရင်စစ်မယ်
+            if not msg or msg.empty:
+                continue
 
+            # ဘယ်လို Media မျိုးမဆို လက်ခံမယ် (Video, Document, etc.)
+            media = msg.video or msg.document or msg.animation
+            
+            if media:
+                file_name = getattr(media, 'file_name', f"File_{msg_id}")
                 movie_id = f"vid_{str(target_chat).replace('-100', '')}_{msg_id}"
                 
                 await movies_col.update_one(
@@ -116,17 +134,21 @@ async def index_movies(client, message):
                     }}, upsert=True
                 )
                 
-                bot_username = (await client.get_me()).username
-                link = f"https://t.me/{bot_username}?start={movie_id}"
-                await client.send_message(message.chat.id, f"✅ **{file_name}**\n🔗 Link: `{link}`")
+                bot_info = await client.get_me()
+                link = f"https://t.me/{bot_info.username}?start={movie_id}"
+                await client.send_message(message.chat.id, f"✅ **Found:** `{file_name}`\n🔗 Link: `{link}`")
                 count += 1
                 await asyncio.sleep(1.5)
+            else:
+                # Video မဟုတ်ရင် ဘာ message လဲဆိုတာ debug ပြမယ် (စမ်းသပ်ဆဲကာလအတွက်)
+                print(f"ID {msg_id} is not a video/file")
+
         except Exception as e:
-            print(f"Error at {msg_id}: {e}")
+            await message.reply_text(f"❌ Error at ID {msg_id}: {str(e)}")
             continue
 
-    await status.edit(f"✅ အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။ စုစုပေါင်း: {count}")
-
+    await status.edit(f"✅ လုပ်ငန်းစဉ် ပြီးဆုံးပါပြီ။\nစုစုပေါင်း သိမ်းဆည်းနိုင်မှု: {count}")
+    
 # Admin Command: Database ထဲက movie အရေအတွက် ကြည့်ရန်
 @app.on_message(filters.command("stats") & filters.user(ADMINS))
 async def stats(client, message):
@@ -137,4 +159,5 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     print("Bot is running...")
     app.run()
+
 
