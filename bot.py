@@ -18,6 +18,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 client = MongoClient(MONGO_URI)
 db = client['MovieBot']
 files_col = db['files']
+users_col = db['users']
 
 # Force Join စစ်ဆေးလိုသော Channel စာရင်း (ဒီမှာ လိုသလောက် ထည့်နိုင်သည်)
 REQUIRED_CHANNELS = [
@@ -72,10 +73,26 @@ def handle_file(message):
     share_link = f"https://t.me/{(bot.get_me()).username}?start={res.inserted_id}"
     bot.reply_to(message, f"✅ သိမ်းပြီးပါပြီ!\n\nLink: `{share_link}`", parse_mode="Markdown")
 
+# --- User Data သိမ်းဆည်းခြင်း ---
+def register_user(message):
+    user_id = message.from_user.id
+    username = message.from_user.username or "No Username"
+    first_name = message.from_user.first_name
+    
+    # User ရှိမရှိစစ်ပြီး မရှိမှ အသစ်ထည့်မည်
+    user_data = {
+        "_id": user_id,
+        "username": username,
+        "name": first_name
+    }
+    # users_col ဆိုတဲ့ collection အသစ်တစ်ခုကို သတ်မှတ်ပေးပါ (အပေါ်ပိုင်း Setup မှာ)
+    db['users'].update_one({"_id": user_id}, {"$set": user_data}, upsert=True)
+
 # --- ၄။ Main logic (Start Command & Force Sub) ---
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    register_user(message)
     user_id = message.from_user.id
     args = message.text.split()
 
@@ -105,6 +122,48 @@ def start(message):
         bot.send_message(user_id, "မင်္ဂလာပါ! ဇာတ်ကားကြည့်ရန် Link ကိုနှိပ်ပါ။") #
 
 # --- ၅။ Callback Handlers (Try Again ခလုတ်များ) ---
+# --- Admin Stats & User List ---
+@bot.message_handler(commands=['stats'], func=lambda m: m.from_user.id == ADMIN_ID)
+def get_stats(message):
+    total = db['users'].count_documents({})
+    bot.reply_to(message, f"📊 **Bot Statistics**\n\nစုစုပေါင်း User အရေအတွက်: `{total}` ယောက်", parse_mode="Markdown")
+
+@bot.message_handler(commands=['users'], func=lambda m: m.from_user.id == ADMIN_ID)
+def list_users(message):
+    users = db['users'].find()
+    user_list_text = "ID | Username | Name\n" + "-"*30 + "\n"
+    for u in users:
+        user_list_text += f"{u['_id']} | @{u.get('username')} | {u.get('name')}\n"
+    
+    # စာသားအရမ်းရှည်နိုင်လို့ ဖိုင်အနေနဲ့ ပို့ပေးမယ်
+    with open("users.txt", "w", encoding="utf-8") as f:
+        f.write(user_list_text)
+    
+    with open("users.txt", "rb") as f:
+        bot.send_document(message.chat.id, f, caption="👥 Bot အသုံးပြုသူများစာရင်း")
+
+# --- Broadcast Feature ---
+@bot.message_handler(commands=['broadcast'], func=lambda m: m.from_user.id == ADMIN_ID)
+def broadcast_command(message):
+    # /broadcast [စာသား] ပုံစံနဲ့ သုံးရပါမယ်
+    msg_text = message.text.replace("/broadcast", "").strip()
+    
+    if not msg_text:
+        return bot.reply_to(message, "❌ အသုံးပြုပုံ: `/broadcast မင်္ဂလာပါ` (သို့မဟုတ် စာကို Reply လုပ်ပါ)")
+
+    users = db['users'].find()
+    success = 0
+    fail = 0
+
+    for u in users:
+        try:
+            bot.send_message(u['_id'], msg_text)
+            success += 1
+        except:
+            fail += 1
+            continue
+            
+    bot.send_message(ADMIN_ID, f"📢 Broadcast ပြီးစီးပါပြီ။\n✅ အောင်မြင်: {success}\n❌ ကျရှုံး: {fail}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('check_'))
 def check_callback(call):
@@ -130,6 +189,7 @@ if __name__ == "__main__":
     Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
+
 
 
 
