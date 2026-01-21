@@ -1,4 +1,6 @@
-pyrogram
-tgcrypto
+pyTelegramBotAPI
+pymongo[srv]
+dnspython
 flask
-motor
+python-dotenv
+gunicorn
