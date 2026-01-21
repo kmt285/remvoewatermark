@@ -33,36 +33,28 @@ def check_status(user_id):
     channels = get_fsub_channels()
     not_joined = []
     
-    # ၁။ Admin ဖြစ်နေရင် ဘာမှစစ်စရာမလိုဘဲ ပေးကြည့်မယ်
+    # ၁။ Admin ကို ကျော်ပေးမယ် (ID ကို string အချင်းချင်း တိုက်စစ်တာ ပိုစိတ်ချရတယ်)
     if str(user_id) == str(ADMIN_ID):
         return []
 
     for ch in channels:
         try:
-            # ၂။ Channel ID ကို သေချာစစ်ဆေးမယ်
-            raw_id = str(ch['id']).strip()
-            
-            # -100 မပါရင် ဖြည့်ပေးမယ် (Telegram Channel ID တိုင်းမှာ -100 ပါရပါတယ်)
-            if not raw_id.startswith('-100'):
-                if raw_id.startswith('-'):
-                    clean_id = f"-100{raw_id[1:]}"
-                else:
-                    clean_id = f"-100{raw_id}"
-            else:
-                clean_id = raw_id
+            # ၂။ ID ကို database က အတိုင်း integer အဖြစ် တိုက်ရိုက်သုံးမယ်
+            # Database ထဲ ထည့်ကတည်းက -100 ပါတဲ့ ID အမှန်ကို ထည့်ရပါမယ်
+            target_chat_id = int(ch['id'])
 
-            # ၃။ Telegram ဆီကနေ User status ကို တောင်းမယ်
-            member = bot.get_chat_member(int(clean_id), user_id)
+            member = bot.get_chat_member(target_chat_id, user_id)
             
-            # ၄။ User ရဲ့ status ကို စစ်မယ်
-            # member, administrator, creator ထဲမှာ တစ်ခုမှမရှိရင် မ Join ရသေးဘူးလို့ ယူဆမယ်
-            if member.status not in ['member', 'administrator', 'creator']:
+            # ၃။ Status စစ်ဆေးခြင်း
+            # left သို့မဟုတ် kicked ဖြစ်နေရင် မ Join ရသေးဘူးလို့ သတ်မှတ်မယ်
+            if member.status in ['left', 'kicked']:
                 not_joined.append(ch)
                 
         except Exception as e:
-            # Bot က Channel ထဲမှာ Admin မဟုတ်ရင် ဒီနေရာမှာ Error တက်ပါမယ်
-            print(f"DEBUG Error for User {user_id} in Channel {ch['id']}: {e}")
-            # စစ်လို့မရတဲ့ Channel ရှိရင် User ကို ပေးသွားခိုင်းလိုက်တာ ပိုကောင်းပါတယ်
+            # Bot က Admin မဟုတ်ရင် ဒီမှာ Error ပြပါလိမ့်မယ်
+            print(f"Error checking {ch['id']}: {e}")
+            # Bot ကို channel ထဲမှာ admin မခန့်ထားရင် logic လွဲနိုင်လို့
+            # join ထားတယ်လို့ ယူဆပြီး ပေးသွားခိုင်းတာ ပိုကောင်းပါတယ်
             continue
             
     return not_joined
@@ -163,6 +155,7 @@ if __name__ == "__main__":
     Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
+
 
 
 
