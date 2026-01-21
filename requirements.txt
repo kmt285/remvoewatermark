@@ -1,4 +1,5 @@
-python-telegram-bot
-opencv-python-headless
-numpy
-pymongo
+pyrogram
+tgcrypto
+motor
+dnspython
+flask
