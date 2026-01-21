@@ -1,167 +1,88 @@
 import os
 import telebot
 from telebot import types
-from pymongo import MongoClient
-from bson.objectid import ObjectId
-from flask import Flask
-from threading import Thread
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# Setup
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-MONGO_URI = os.getenv('MONGO_URI')
+# --- ၁။ Configuration ပိုင်း (မိမိ Channel ID များ ဖြည့်ရန်) ---
+API_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 
-bot = telebot.TeleBot(BOT_TOKEN)
-client = MongoClient(MONGO_URI)
-db = client['MovieBot']
-files_col = db['files']
-settings_col = db['settings']
+bot = telebot.TeleBot(API_TOKEN)
 
-app = Flask('')
-@app.route('/')
-def home(): return "Bot is running!"
+# စစ်ဆေးလိုသော Channel စာရင်း (Rose Bot တွင် /id ဖြင့် ID ယူပါ)
+# -100 ပါသော ID အပြည့်အစုံ ထည့်ရပါမည်
+REQUIRED_CHANNELS = [
+    {"id": -100123456789, "link": "https://t.me/channel_one"},
+    {"id": -100987654321, "link": "https://t.me/channel_two"},
+    # လိုအပ်သလောက် ထပ်တိုးနိုင်ပါသည်
+]
 
-# Database ကနေ Channel List ကို ဆွဲယူခြင်း
-def get_fsub_channels():
-    data = settings_col.find_one({"type": "fsub_config"})
-    return data['channels'] if data else []
-
-def check_status(user_id):
-    channels = get_fsub_channels()
+# --- ၂။ Force Subscribe စစ်ဆေးသည့် Function ---
+def get_not_joined(user_id):
+    """User မ Join ရသေးသော Channel များစာရင်းကို ပြန်ပေးမည်"""
     not_joined = []
     
-    if str(user_id) == str(ADMIN_ID):
+    # Admin ဖြစ်နေရင် စစ်စရာမလိုဘဲ ကျော်ပေးမည်
+    if user_id == ADMIN_ID:
         return []
 
-    for ch in channels:
+    for ch in REQUIRED_CHANNELS:
         try:
-            # ID ကို သေချာပေါက် integer ဖြစ်အောင် လုပ်ပါ
-            target_chat_id = int(str(ch['id']).strip())
-
-            member = bot.get_chat_member(target_chat_id, user_id)
-            
-            # Status စစ်ဆေးခြင်း (left, kicked, null ဖြစ်နေရင် မ Join ဘူးလို့ ယူဆမယ်)
-            if member.status in ['left', 'kicked'] or member.status is None:
+            member = bot.get_chat_member(ch['id'], user_id)
+            # member, administrator, creator မဟုတ်လျှင် မ Join သေးဟု သတ်မှတ်
+            if member.status not in ['member', 'administrator', 'creator']:
                 not_joined.append(ch)
-                
         except Exception as e:
-            # ဒီနေရာမှာ တက်တဲ့ Error ကို Console မှာ ကြည့်ပါ
-            print(f"❌ Error Checking Channel {ch['id']}: {e}")
-            
-            # အရေးကြီးဆုံးအချက် - အကယ်၍ Bot က Admin မဟုတ်ရင် 
-            # member status ကို စစ်လို့မရဘဲ Error တက်ပါလိမ့်မယ်။
-            # အဲဒီအခါ user ကို join ထားလဲ မရဘူးလို့ ပြနေတတ်ပါတယ်။
-            # ဒါကြောင့် error တက်ရင် join ပြီးသားလို့ ယူဆပေးလိုက်ပါ (Pass ပေးလိုက်ပါ)
+            # Bot ကို Channel ထဲမှာ Admin မခန့်ထားလျှင် ဤနေရာတွင် Error တက်မည်
+            print(f"Error checking channel {ch['id']}: {e}")
             continue
             
     return not_joined
-# Video ပို့ပေးသည့် သီးသန့် Function
-def send_movie(user_id, file_db_id):
-    try:
-        data = files_col.find_one({"_id": ObjectId(file_db_id)})
-        if data:
-            bot.send_video(user_id, data['file_id'], caption=data['caption'])
-        else:
-            bot.send_message(user_id, "❌ ဖိုင်ရှာမတွေ့ပါ။")
-    except Exception as e:
-        bot.send_message(user_id, "❌ Link မှားယွင်းနေပါသည်။")
 
-# --- Admin Commands ---
-
-@bot.message_handler(commands=['addch'])
-def add_channel(message):
-    if message.from_user.id != ADMIN_ID: return
-    try:
-        args = message.text.split()
-        # ID ကို string အနေနဲ့ အရင်ယူ၊ space ဖြတ်ပြီးမှ int ပြောင်းပါ
-        ch_id = int(args[1].strip()) 
-        ch_link = args[2].strip()
-        
-        settings_col.update_one(
-            {"type": "fsub_config"},
-            {"$push": {"channels": {"id": ch_id, "link": ch_link}}},
-            upsert=True
-        )
-        bot.reply_to(message, f"✅ Channel ထည့်သွင်းပြီးပါပြီ။\nID: `{ch_id}`", parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}\nအသုံးပြုပုံ: `/addch [ID] [Link]`")
-
-@bot.message_handler(commands=['delch'])
-def del_channel(message):
-    if message.from_user.id != ADMIN_ID: return
-    settings_col.update_one({"type": "fsub_config"}, {"$set": {"channels": []}})
-    bot.reply_to(message, "🗑 Channel List အားလုံးကို ဖျက်လိုက်ပါပြီ။")
-
-@bot.message_handler(commands=['listch'])
-def list_channel(message):
-    if message.from_user.id != ADMIN_ID: return
-    channels = get_fsub_channels()
-    msg = "📢 **လက်ရှိ Force Join Channels:**\n\n"
-    for c in channels:
-        msg += f"ID: `{c['id']}`\nLink: {c['link']}\n\n"
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
-
-# --- File Handling (Admin Only) ---
-
-@bot.message_handler(content_types=['video', 'document'])
-def handle_file(message):
-    if message.from_user.id != ADMIN_ID: return
-    file_id = message.video.file_id if message.content_type == 'video' else message.document.file_id
-    caption = message.caption or "No Title"
-    res = files_col.insert_one({"file_id": file_id, "caption": caption})
-    share_link = f"https://t.me/{(bot.get_me()).username}?start={res.inserted_id}"
-    bot.reply_to(message, f"✅ သိမ်းပြီးပါပြီ!\n\nLink: `{share_link}`", parse_mode="Markdown")
-
-# --- User Start Logic ---
-
-@bot.message_handler(commands=['start'])
-def start(message):
-    args = message.text.split()
+# --- ၃။ Message Handler (Main Logic) ---
+@bot.message_handler(func=lambda m: True)
+def handle_all_messages(message):
     user_id = message.from_user.id
+    
+    # User Join ထားခြင်း ရှိမရှိ စစ်ဆေးခြင်း
+    not_joined_list = get_not_joined(user_id)
 
-    if len(args) > 1:
-        file_db_id = args[1]
-        not_joined = check_status(user_id)
+    if not_joined_list:
+        # မ Join ရသေးသော Channel များအတွက် Button များထုတ်ပေးမည်
+        markup = types.InlineKeyboardMarkup()
+        for ch in not_joined_list:
+            btn = types.InlineKeyboardButton("📢 Join Channel", url=ch['link'])
+            markup.add(btn)
+        
+        # Try Again ခလုတ် (Option)
+        # အကယ်၍ /start နှိပ်ထားတာဆိုရင် command ပါတဲ့ start link အတွက် logic ထည့်နိုင်သည်
+        markup.add(types.InlineKeyboardButton("♻️ အားလုံး Join ပြီးပါပြီ", callback_data="check_sub"))
 
-        if not_joined:
-            markup = types.InlineKeyboardMarkup()
-            for ch in not_joined:
-                markup.add(types.InlineKeyboardButton("📢 Join Channel", url=ch['link']))
-            markup.add(types.InlineKeyboardButton("♻️ Try Again", callback_data=f"check_{file_db_id}"))
-            return bot.send_message(user_id, "❌ ဗီဒီယိုကြည့်ရန် အောက်ပါ Channel များကို အရင် Join ပေးပါ။", reply_markup=markup)
+        bot.send_message(
+            message.chat.id, 
+            "⚠️ **ဗီဒီယိုကြည့်ရှုရန် အောက်ပါ Channel အားလုံးကို အရင် Join ပေးပါ။**", 
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+        return
 
-        send_movie(user_id, file_db_id)
+    # --- ဒီအောက်မှာမှ Join ပြီးသား User တွေအတွက် လုပ်ဆောင်ချက်များ ရေးရန် ---
+    if message.text == "/start":
+        bot.send_message(message.chat.id, "✅ မင်္ဂလာပါ! Channel အားလုံး Join ပြီးပါပြီ။ ဇာတ်ကား ID ပို့ပေးပါ။")
     else:
-        bot.send_message(user_id, "မင်္ဂလာပါ! ဇာတ်ကားကြည့်ရန် Link ကိုနှိပ်ပါ။")
+        # ဥပမာ - Movie ID ရှာဖွေခြင်း logic များ ဒီမှာ ထည့်ပါ
+        bot.reply_to(message, f"သင်ပို့လိုက်သော ID `{message.text}` ကို ရှာဖွေနေပါသည်...")
 
-# Try Again ခလုတ်အတွက် Callback Handler
-@bot.callback_query_handler(func=lambda call: call.data.startswith('check_'))
+# --- ၄။ Try Again ခလုတ်အတွက် Callback ---
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def check_callback(call):
     user_id = call.from_user.id
-    file_db_id = call.data.split("_")[1]
-    not_joined = check_status(user_id)
-    
-    if not_joined:
-        bot.answer_callback_query(call.id, "❌ Channel အားလုံးမ Join ရသေးပါ!", show_alert=True)
-    else:
+    if not get_not_joined(user_id):
+        bot.answer_callback_query(call.id, "✅ ကျေးဇူးတင်ပါတယ်! အခု စတင်အသုံးပြုနိုင်ပါပြီ။", show_alert=True)
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        send_movie(user_id, file_db_id)
-
-def run():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+        bot.send_message(call.message.chat.id, "ဇာတ်ကား ID ကို ရိုက်ထည့်ပေးပါ။")
+    else:
+        bot.answer_callback_query(call.id, "❌ Channel အားလုံး မ Join ရသေးပါ။", show_alert=True)
 
 if __name__ == "__main__":
-    Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
-
-
-
-
-
-
-
-
