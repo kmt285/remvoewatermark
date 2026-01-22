@@ -22,8 +22,8 @@ users_col = db['users']
 
 # Force Join စစ်ဆေးလိုသော Channel စာရင်း (ဒီမှာ လိုသလောက် ထည့်နိုင်သည်)
 REQUIRED_CHANNELS = [
-    {"id": -1003179962336, "link": "https://t.me/moviesbydatahouse"},
-    {"id": -1003622691900, "link": "https://t.me/mmsubchannelfu"},
+    {"id": -1003292787456, "link": "https://t.me/+pVYht2LvQGJkYzI1"},
+    {"id": -1003658589528, "link": "https://t.me/+EVZ3Ockc8DQxNDQ9"},
 ]
 
 app = Flask('')
@@ -119,7 +119,7 @@ def start(message):
     if len(args) > 1:
         send_movie(user_id, args[1]) #
     else:
-        bot.send_message(user_id, "မင်္ဂလာပါ! ဇာတ်ကားကြည့်ရန် Link ကိုနှိပ်ပါ။") #
+        bot.send_message(user_id, "မင်္ဂလာပါ! ဇာတ်ကားများကြည့်ရန် - https://t.me/moviesbydatahouse") #
 
 # --- ၅။ Callback Handlers (Try Again ခလုတ်များ) ---
 # --- Admin Stats & User List ---
@@ -191,6 +191,7 @@ if __name__ == "__main__":
     Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
+
 
 
 
