@@ -22,8 +22,8 @@ users_col = db['users']
 
 # Force Join စစ်ဆေးလိုသော Channel စာရင်း (ဒီမှာ လိုသလောက် ထည့်နိုင်သည်)
 REQUIRED_CHANNELS = [
-    {"id": -1003292787456, "link": "https://t.me/+pVYht2LvQGJkYzI1"},
-    {"id": -1003658589528, "link": "https://t.me/+EVZ3Ockc8DQxNDQ9"},
+    {"id": -1003465827360, "link": "https://t.me/premiumchmm"},
+    {"id": -1003292787456, "link": "https://t.me/moviesdbmm"},
 ]
 
 app = Flask('')
@@ -191,6 +191,7 @@ if __name__ == "__main__":
     Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
+
 
 
 
