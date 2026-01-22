@@ -19,6 +19,7 @@ client = MongoClient(MONGO_URI)
 db = client['MovieBot']
 files_col = db['files']
 users_col = db['users']
+config_col = db['settings']
 
 # Force Join စစ်ဆေးလိုသော Channel စာရင်း (ဒီမှာ လိုသလောက် ထည့်နိုင်သည်)
 REQUIRED_CHANNELS = [
@@ -57,7 +58,15 @@ def send_movie(user_id, file_db_id):
     try:
         data = files_col.find_one({"_id": ObjectId(file_db_id)})
         if data:
-            bot.send_video(user_id, data['file_id'], caption=data['caption'], protect_content=True)
+            # Database ထဲက ပုံသေစာသားကို ရှာပါ
+            config = config_col.find_one({"type": "caption_config"})
+            permanent_text = config['text'] if config else ""
+            
+            # မူရင်း Caption နဲ့ ပုံသေစာသားကို ပေါင်းပါ
+            final_caption = f"{data['caption']}\n\n{permanent_text}"
+            
+            # ဗီဒီယိုပို့ပါ (protect_content=True ကိုတော့ အပေါ်မှာ ဆွေးနွေးခဲ့သလို လိုအပ်မှ သုံးပါ)
+            bot.send_video(user_id, data['file_id'], caption=final_caption)
         else:
             bot.send_message(user_id, "❌ ဖိုင်ရှာမတွေ့ပါ။")
     except Exception as e:
@@ -121,6 +130,17 @@ def start(message):
     else:
         bot.send_message(user_id, "မင်္ဂလာပါ! ဇာတ်ကားများကြည့်ရန် - https://t.me/moviesbydatahouse") #
 
+@bot.message_handler(commands=['setcaption'], func=lambda m: m.from_user.id == ADMIN_ID)
+def set_permanent_caption(message):
+    # Command ရဲ့ နောက်က စာသားကို ယူပါ
+    text = message.text.replace('/setcaption', '').strip()
+    if not text:
+        return bot.reply_to(message, "❌ စာသားထည့်ပေးပါ။ ဥပမာ - `/setcaption @mychannel`", parse_mode="Markdown")
+    
+    # Database ထဲမှာ သိမ်းပါ
+    config_col.update_one({"type": "caption_config"}, {"$set": {"text": text}}, upsert=True)
+    bot.reply_to(message, f"✅ ပုံသေစာသားကို `{text}` အဖြစ် ပြောင်းလဲလိုက်ပါပြီ။", parse_mode="Markdown")
+
 # --- ၅။ Callback Handlers (Try Again ခလုတ်များ) ---
 # --- Admin Stats & User List ---
 @bot.message_handler(commands=['stats'], func=lambda m: m.from_user.id == ADMIN_ID)
@@ -159,7 +179,7 @@ def broadcast_command(message):
     for u in users:
         try:
             # copy_message ကို သုံးရင် စာသားရော၊ ပုံရော၊ ဗီဒီယိုပါ မူရင်းအတိုင်း ကူးယူပို့ပေးပါတယ်
-            bot.copy_message(u['_id'], ADMIN_ID, target_msg.message_id, protect_content=True)
+            bot.copy_message(u['_id'], ADMIN_ID, target_msg.message_id)
             success += 1
         except:
             fail += 1
@@ -191,6 +211,7 @@ if __name__ == "__main__":
     Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
+
 
 
 
