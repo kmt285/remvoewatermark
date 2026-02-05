@@ -23,8 +23,7 @@ config_col = db['settings']
 
 # Force Join စစ်ဆေးလိုသော Channel စာရင်း (ဒီမှာ လိုသလောက် ထည့်နိုင်သည်)
 REQUIRED_CHANNELS = [
-    {"id": -1003465827360, "link": "https://t.me/premiumchmm"},
-    {"id": -1003292787456, "link": "https://t.me/moviesdbmm"},
+    {"id": -1003179962336, "link": "https://t.me/moviesbydatahouse"},
 ]
 
 app = Flask('')
@@ -211,6 +210,7 @@ if __name__ == "__main__":
     Thread(target=run).start()
     print("Bot is running...")
     bot.infinity_polling()
+
 
 
 
