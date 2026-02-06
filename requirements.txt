@@ -1,6 +1,5 @@
-pyrogram
-tgcrypto
-google-generativeai
-pymongo
 python-dotenv
+pyTelegramBotAPI
+pymongo
 flask
+python-dotenv
